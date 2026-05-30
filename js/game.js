@@ -96,6 +96,9 @@
   /* Scale factors derived from canvas size each resize */
   var scaleX = 1, scaleY = 1;
 
+  /* HiDPI / Retina support — logical (CSS) canvas dimensions */
+  var dpr = 1, lW = 0, lH = 0;
+
   /* ============================================================
      SECTION 3: UTILITY FUNCTIONS
      ============================================================ */
@@ -556,8 +559,8 @@
     var x, y, attempts = 0;
 
     do {
-      x = margin + Math.random() * (canvas.width - margin * 2);
-      y = canvas.height + r + Math.random() * 40 * scaleY;
+      x = margin + Math.random() * (lW - margin * 2);
+      y = lH + r + Math.random() * 40 * scaleY;
       attempts++;
     } while (overlaps(x, y, r) && attempts < 40);
 
@@ -576,8 +579,8 @@
     for (var i = 0; i < CONFIG.TARGET_BALL_COUNT; i++) {
       var x, y, attempts = 0;
       do {
-        x = margin + Math.random() * (canvas.width  - margin * 2);
-        y = canvas.height * 0.08 + Math.random() * canvas.height * 0.84;
+        x = margin + Math.random() * (lW  - margin * 2);
+        y = lH * 0.08 + Math.random() * lH * 0.84;
         attempts++;
       } while (overlaps(x, y, r) && attempts < 60);
 
@@ -594,7 +597,7 @@
      ============================================================ */
 
   function renderPreloader() {
-    var W = canvas.width, H = canvas.height;
+    var W = lW, H = lH;
 
     /* Gradient background */
     var bg = ctx.createLinearGradient(0, 0, 0, H);
@@ -668,7 +671,7 @@
   }
 
   function drawBackground() {
-    var W = canvas.width, H = canvas.height;
+    var W = lW, H = lH;
     bgAnimTime += 0.016;
 
     if (bgLoaded && bgImage.complete && bgImage.naturalWidth > 0) {
@@ -703,7 +706,7 @@
 
   /** Semi-transparent dark panel used behind overlay screens */
   function drawPanel() {
-    var W = canvas.width, H = canvas.height;
+    var W = lW, H = lH;
     var pad = W * 0.05, r = W * 0.055;
     roundRect(pad, pad, W - pad * 2, H - pad * 2, r);
     ctx.fillStyle = 'rgba(8, 4, 30, 0.84)';
@@ -758,7 +761,7 @@
 
   function renderMenu() {
     drawBackground();
-    var W = canvas.width, H = canvas.height;
+    var W = lW, H = lH;
 
     /* Title */
     ctx.save();
@@ -815,7 +818,7 @@
   function renderLevelSelect() {
     drawBackground();
     drawPanel();
-    var W = canvas.width, H = canvas.height;
+    var W = lW, H = lH;
 
     ctx.save();
     ctx.font = 'bold ' + Math.round(W * 0.082) + 'px Arial';
@@ -869,7 +872,7 @@
   function renderHelp() {
     drawBackground();
     drawPanel();
-    var W = canvas.width, H = canvas.height;
+    var W = lW, H = lH;
 
     var lines = [
       { text: 'HOW TO PLAY',                  s: 0.076, c: '#FFE066', b: true,  y: 0.10 },
@@ -904,7 +907,7 @@
   function renderAbout() {
     drawBackground();
     drawPanel();
-    var W = canvas.width, H = canvas.height;
+    var W = lW, H = lH;
 
     var lines = [
       { text: 'ABOUT',                       s: 0.086, c: '#FFE066', b: true,  y: 0.10  },
@@ -937,7 +940,7 @@
      ============================================================ */
 
   function renderHUD() {
-    var W = canvas.width, H = canvas.height;
+    var W = lW, H = lH;
     hudButtons = [];
 
     /* Score */
@@ -996,7 +999,7 @@
      ============================================================ */
 
   function renderPauseOverlay() {
-    var W = canvas.width, H = canvas.height;
+    var W = lW, H = lH;
 
     /* Dimmer */
     ctx.save();
@@ -1112,8 +1115,8 @@
 
   function canvasPos(e) {
     var rect  = canvas.getBoundingClientRect();
-    var sX    = canvas.width  / rect.width;
-    var sY    = canvas.height / rect.height;
+    var sX    = lW / rect.width;
+    var sY    = lH / rect.height;
     var src   = e.touches ? e.touches[0] : e;
     return {
       x: (src.clientX - rect.left) * sX,
@@ -1200,8 +1203,17 @@
     var W    = Math.min(window.innerWidth,  maxW);
     var H    = window.innerHeight;
 
-    canvas.width  = W;
-    canvas.height = H;
+    dpr = window.devicePixelRatio || 1;
+    lW  = W;
+    lH  = H;
+
+    /* Backing buffer at physical pixels — eliminates blurry/pixelated text
+       on Retina / HiDPI / mobile screens (devicePixelRatio > 1).
+       CSS width/height are NOT overridden here; the stylesheet's
+       width:100% / max-width:480px / height:100% continues to set the
+       display size, and the buffer is scaled up by dpr for crispness. */
+    canvas.width  = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
 
     /* Centre on desktop */
     canvas.style.position = 'absolute';
@@ -1224,7 +1236,7 @@
      ============================================================ */
 
   function renderLandscapeWarning() {
-    var W = canvas.width, H = canvas.height;
+    var W = lW, H = lH;
     ctx.fillStyle = '#0D0B2B'; ctx.fillRect(0, 0, W, H);
 
     ctx.save();
@@ -1249,16 +1261,20 @@
     var dt = Math.min((timestamp - lastTime) / 1000, 0.08);
     lastTime = timestamp;
 
+    /* Re-apply HiDPI scale every frame — setting canvas.width in resize()
+       resets the context transform, so we restate it here to be safe. */
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
     /* Check orientation on mobile */
     var isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
     if (isMobile && window.innerWidth > window.innerHeight) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, lW, lH);
       renderLandscapeWarning();
       requestAnimationFrame(loop);
       return;
     }
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, lW, lH);
 
     if (state === 'preload') {
       renderPreloader();
