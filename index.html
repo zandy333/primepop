@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<!--
+  PRIME POP - HTML5 Mini Game
+  Version: 1.0
+  Description: Pop the prime number bubbles before they escape!
+  Platform: HTML5 Canvas — works on desktop & mobile browsers.
+  Files:
+    index.html   — this file; game shell and canvas element
+    css/style.css — layout, responsive rules, landscape overlay
+    js/game.js    — complete game engine (canvas, audio, logic)
+    assets/background.png — game background art
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="description" content="Prime Pop — an HTML5 mini-game where you pop prime number bubbles!" />
+  <meta name="theme-color" content="#0D0B2B" />
+
+  <!-- Prevent iOS from treating tel: numbers as links, prevent text size adjustment -->
+  <meta name="format-detection" content="telephone=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <title>Prime Pop</title>
+
+  <!-- Game stylesheet -->
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- Wrapper centres the canvas on wide screens -->
+  <div id="gameWrapper">
+
+    <!--
+      Main game canvas.
+      All rendering — menus, game field, HUD, explosions — is drawn
+      here by game.js using the 2D Canvas API.
+    -->
+    <canvas id="gameCanvas"></canvas>
+
+  </div>
+
+  <!--
+    Landscape orientation warning overlay.
+    Shown via CSS media query on mobile landscape AND as a JS fallback.
+    The CSS rule in style.css handles most cases; game.js renders a
+    canvas-based version as a belt-and-braces fallback.
+  -->
+  <div id="landscapeWarning" role="alert" aria-live="polite">
+    <div class="rotate-icon">↺</div>
+    <p>Please rotate your device<br>to <strong>portrait</strong> orientation<br>to play Prime Pop.</p>
+  </div>
+
+  <!-- Game engine — loaded last so the DOM is ready -->
+  <script src="js/game.js"></script>
+
+</body>
+</html>

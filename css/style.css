@@ -1,0 +1,87 @@
+/* ============================================================
+   PRIME POP - Game Stylesheet v1.0
+   Responsive, mobile-first layout for HTML5 canvas game
+   ============================================================ */
+
+/* Reset & Base */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0D0B2B;
+  font-family: 'Arial Rounded MT Bold', 'Arial', sans-serif;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Canvas wrapper centers the game on wider screens */
+#gameWrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #0D0B2B;
+}
+
+/* Main canvas element */
+#gameCanvas {
+  display: block;
+  position: relative;
+  /* Max width for desktop; full width on mobile */
+  max-width: 480px;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  image-rendering: crisp-edges;
+}
+
+/* Landscape overlay (shown via JS, hidden by default) */
+#landscapeWarning {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: #0D0B2B;
+  z-index: 999;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #FFE066;
+  text-align: center;
+  padding: 2rem;
+}
+
+#landscapeWarning .rotate-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  animation: rotateAnim 2s ease-in-out infinite;
+}
+
+#landscapeWarning p {
+  font-size: 1.2rem;
+  color: #ffffff;
+  line-height: 1.6;
+}
+
+@keyframes rotateAnim {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-90deg); }
+}
+
+/* Show landscape warning only when truly in landscape on mobile */
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  #landscapeWarning {
+    display: flex;
+  }
+}
