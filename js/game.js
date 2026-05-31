@@ -81,6 +81,10 @@
   var bgLoaded = false;
   var loadProgress = 0;
 
+  /* Logo image (replaces text title on preloader & menu) */
+  var logoImage = null;
+  var logoLoaded = false;
+
   /* Background star field */
   var stars = [];
 
@@ -546,10 +550,53 @@
     var minDist = r * 2.6;
     for (var i = 0; i < balls.length; i++) {
       var b = balls[i];
-      var dx = b.x - x, dy = b.y - y;
+      var dx = b.drawX - x, dy = b.y - y;
       if (dx * dx + dy * dy < minDist * minDist) return true;
     }
     return false;
+  }
+
+  /**
+   * Separation pass — run every frame after ball.update().
+   * For every overlapping pair, push both balls apart along the
+   * separation axis until they no longer touch. Multiple passes
+   * resolve clusters cleanly without jitter.
+   */
+  function separateBalls() {
+    var PASSES = 4;
+    for (var pass = 0; pass < PASSES; pass++) {
+      for (var i = 0; i < balls.length - 1; i++) {
+        for (var j = i + 1; j < balls.length; j++) {
+          var a = balls[i], b = balls[j];
+          var minDist = (a.r + b.r) * 1.06; /* 6 % padding so numbers don't kiss */
+          var dx = b.drawX - a.drawX;
+          var dy = b.y     - a.y;
+          var distSq = dx * dx + dy * dy;
+          if (distSq < minDist * minDist && distSq > 0.0001) {
+            var dist    = Math.sqrt(distSq);
+            var overlap = (minDist - dist) * 0.5;
+            var nx = dx / dist, ny = dy / dist;
+
+            /* Push base X positions — these persist across wobble updates */
+            a.x -= nx * overlap;
+            b.x += nx * overlap;
+
+            /* Push Y directly (no per-frame offset on Y) */
+            a.y += ny * overlap;
+            b.y -= ny * overlap;
+
+            /* Clamp to stay inside the canvas horizontally */
+            var margin = a.r * 1.1;
+            a.x = Math.max(margin, Math.min(lW - margin, a.x));
+            b.x = Math.max(margin, Math.min(lW - margin, b.x));
+
+            /* Re-derive drawX immediately so later pairs in this pass see the update */
+            a.drawX = a.x + Math.sin(a.wobblePhase) * a.wobbleAmp;
+            b.drawX = b.x + Math.sin(b.wobblePhase) * b.wobbleAmp;
+          }
+        }
+      }
+    }
   }
 
   /** Spawn a single ball below the canvas */
@@ -571,23 +618,35 @@
     balls.push(new Ball(x, y, info.number, color));
   }
 
-  /** Scatter initial balls across the screen so it feels populated from the start */
+  /**
+   * Stage all initial balls below the canvas, staggered so they drift
+   * onto the screen gradually from the bottom rather than filling the
+   * viewport all at once. Spread is proportional to ball speed so the
+   * stagger feels the same at every level (~3 seconds of arrival time).
+   */
   function spawnInitialBalls() {
     var r      = CONFIG.BALL_RADIUS * scaleX;
     var margin = r * 2.2;
+    var speed  = LEVEL_SPEEDS[currentLevel - 1] * scaleY;
 
-    for (var i = 0; i < CONFIG.TARGET_BALL_COUNT; i++) {
-      var x, y, attempts = 0;
+    /* Total vertical spread: 3 s of travel, at least half a screen height */
+    var spread = Math.max(speed * 3.0, lH * 0.5);
+    var count  = CONFIG.TARGET_BALL_COUNT;
+
+    for (var i = 0; i < count; i++) {
+      /* First ball spawns just below the bottom edge; last ball is ~spread px further down */
+      var baseY = lH + r * 1.5 + (i / Math.max(1, count - 1)) * spread;
+
+      var x, attempts = 0;
       do {
-        x = margin + Math.random() * (lW  - margin * 2);
-        y = lH * 0.08 + Math.random() * lH * 0.84;
+        x = margin + Math.random() * (lW - margin * 2);
         attempts++;
-      } while (overlaps(x, y, r) && attempts < 60);
+      } while (overlaps(x, baseY, r) && attempts < 40);
 
       var info  = generateBall();
       var color = BALL_COLORS[rndInt(0, BALL_COLORS.length - 1)];
       usedNumbers[info.number] = true;
-      balls.push(new Ball(x, y, info.number, color));
+      balls.push(new Ball(x, baseY, info.number, color));
     }
   }
 
@@ -606,15 +665,13 @@
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
-    /* Title */
+    /* Logo — scales to fit canvas width, centered at ~30 % from top */
+    var logoW = Math.min(W * 0.82, 370);
+    var logoH = logoW / 1.5;          /* source image is 900 × 600, ratio = 1.5 */
+    var logoCY = H * 0.32;            /* vertical centre of logo */
     ctx.save();
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.shadowColor = '#9B5BFF'; ctx.shadowBlur = 22;
-    ctx.font = 'bold ' + Math.round(W * 0.13) + 'px Arial';
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillText('PRIME', W / 2, H * 0.33);
-    ctx.fillStyle = '#FFE066';
-    ctx.fillText('POP', W / 2, H * 0.46);
+    ctx.shadowColor = '#9B5BFF'; ctx.shadowBlur = 24;
+    ctx.drawImage(logoImage, (W - logoW) / 2, logoCY - logoH / 2, logoW, logoH);
     ctx.restore();
 
     /* Progress bar track */
@@ -763,23 +820,23 @@
     drawBackground();
     var W = lW, H = lH;
 
-    /* Title */
+    /* Logo — anchored near the top, width responsive to canvas */
+    var logoW = Math.min(W * 0.75, 340);
+    var logoH = logoW / 1.5;          /* source image is 900 × 600, ratio = 1.5 */
+    var logoTop = H * 0.04;
+    var logoCY  = logoTop + logoH / 2;
     ctx.save();
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.shadowColor = '#9060EE'; ctx.shadowBlur = 24;
-    ctx.font = 'bold ' + Math.round(W * 0.14) + 'px Arial';
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillText('PRIME', W / 2, H * 0.16);
-    ctx.fillStyle = '#FFE066';
-    ctx.fillText('POP', W / 2, H * 0.27);
+    ctx.shadowColor = '#9060EE'; ctx.shadowBlur = 22;
+    ctx.drawImage(logoImage, (W - logoW) / 2, logoTop, logoW, logoH);
     ctx.restore();
 
-    /* Subtitle */
+    /* Subtitle — positioned just below logo with a minimum gap */
+    var subtitleY = Math.max(logoTop + logoH + H * 0.03, H * 0.345);
     ctx.save();
     ctx.font = Math.round(W * 0.042) + 'px Arial';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.fillText('Pop the prime number bubbles!', W / 2, H * 0.345);
+    ctx.fillText('Pop the prime number bubbles!', W / 2, subtitleY);
     ctx.restore();
 
     /* Buttons */
@@ -1074,6 +1131,9 @@
     /* Update balls */
     balls.forEach(function (b) { b.update(dt); });
 
+    /* Prevent overlap — push apart any colliding balls */
+    separateBalls();
+
     /* Detect escaped balls */
     var survived = [];
     for (var i = 0; i < balls.length; i++) {
@@ -1341,12 +1401,19 @@
     bgImage.onerror = function () { bgLoaded = true; };   /* use gradient fallback */
     bgImage.src = 'assets/background.png';
 
+    /* Load logo image */
+    logoImage = new Image();
+    logoImage.onload  = function () { logoLoaded = true; };
+    logoImage.onerror = function () { logoLoaded = true; };
+    logoImage.src = 'assets/logo.png';
+
     /* Simulate incremental load progress for the preloader bar */
+    var bothLoaded = function () { return bgLoaded && logoLoaded; };
     var fakeProgress = 0;
     var ticker = setInterval(function () {
       fakeProgress += 0.04;
-      loadProgress  = Math.min(fakeProgress, bgLoaded ? 1 : 0.92);
-      if (bgLoaded && loadProgress >= 0.99) {
+      loadProgress  = Math.min(fakeProgress, bothLoaded() ? 1 : 0.92);
+      if (bothLoaded() && loadProgress >= 0.99) {
         loadProgress = 1;
         clearInterval(ticker);
         /* Short pause on 100% before transitioning to menu */
