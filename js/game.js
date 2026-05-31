@@ -732,8 +732,17 @@
     bgAnimTime += 0.016;
 
     if (bgLoaded && bgImage.complete && bgImage.naturalWidth > 0) {
-      /* Draw the AI-generated background, covering the full canvas */
-      ctx.drawImage(bgImage, 0, 0, W, H);
+      /* "cover" scaling — maintain aspect ratio, fill the canvas, centre the image.
+         Scale factor = whichever axis needs the larger multiplier to cover W×H.
+         The canvas boundary clips any overflow automatically.               */
+      var imgW  = bgImage.naturalWidth;
+      var imgH  = bgImage.naturalHeight;
+      var scale = Math.max(W / imgW, H / imgH);
+      var bw    = imgW * scale;
+      var bh    = imgH * scale;
+      var bx    = (W - bw) / 2;
+      var by    = (H - bh) / 2;
+      ctx.drawImage(bgImage, bx, by, bw, bh);
       /* Subtle dark overlay so UI elements stay readable */
       ctx.fillStyle = 'rgba(8, 4, 28, 0.38)';
       ctx.fillRect(0, 0, W, H);
@@ -1250,43 +1259,59 @@
      ============================================================ */
 
   function resize() {
-    var isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    var vW = window.innerWidth;
+    var vH = window.innerHeight;
+    var isLandscape = vW > vH;
 
-    if (isMobile && window.innerWidth > window.innerHeight) {
-      /* Show the CSS landscape overlay instead of forcing canvas */
+    /* Use pointer-coarse as a reliable mobile proxy; fall back to UA sniff */
+    var isMobile = window.matchMedia('(pointer: coarse)').matches ||
+                   /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
+    /* ── Mobile landscape → block play, show overlay ── */
+    if (isMobile && isLandscape) {
       document.getElementById('landscapeWarning').style.display = 'flex';
+      /* Keep lW/lH valid so the loop doesn't divide by zero */
+      if (!lW) { lW = vH; lH = vW; } /* rough swap while blocked */
       return;
     }
     document.getElementById('landscapeWarning').style.display = 'none';
 
-    var maxW = 480;
-    var W    = Math.min(window.innerWidth,  maxW);
-    var H    = window.innerHeight;
+    var W, H;
+
+    if (!isMobile && isLandscape) {
+      /* ── Desktop/laptop landscape → portrait panel centred on dark bg ──
+         Height fills the viewport; width is constrained to portrait ratio.
+         Max width of 480 px keeps it phone-sized on very wide monitors.   */
+      H = vH;
+      W = Math.min(Math.round(H * 0.56), 480, vW);
+    } else {
+      /* ── Portrait (any device) → full viewport ── */
+      W = vW;
+      H = vH;
+    }
 
     dpr = window.devicePixelRatio || 1;
     lW  = W;
     lH  = H;
 
-    /* Backing buffer at physical pixels — eliminates blurry/pixelated text
-       on Retina / HiDPI / mobile screens (devicePixelRatio > 1).
-       CSS width/height are NOT overridden here; the stylesheet's
-       width:100% / max-width:480px / height:100% continues to set the
-       display size, and the buffer is scaled up by dpr for crispness. */
+    /* Backing store at physical pixels for HiDPI sharpness */
     canvas.width  = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
 
-    /* Centre on desktop */
-    canvas.style.position = 'absolute';
-    canvas.style.left     = ((window.innerWidth - W) / 2) + 'px';
-    canvas.style.top      = '0';
+    /* JS owns the canvas display size — CSS sets nothing on the canvas */
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+    canvas.style.left   = Math.round((vW - W) / 2) + 'px';
+    canvas.style.top    = '0';
 
     /* Update scale factors */
     scaleX = W / CONFIG.REF_WIDTH;
     scaleY = H / CONFIG.REF_HEIGHT;
 
     /* Rescale all live balls */
-    var r = CONFIG.BALL_RADIUS * scaleX;
-    var speed = currentLevel > 0 ? LEVEL_SPEEDS[currentLevel - 1] * scaleY : LEVEL_SPEEDS[0] * scaleY;
+    var r     = CONFIG.BALL_RADIUS * scaleX;
+    var speed = currentLevel > 0 ? LEVEL_SPEEDS[currentLevel - 1] * scaleY
+                                 : LEVEL_SPEEDS[0] * scaleY;
     balls.forEach(function (b) { b.r = r; b.speed = speed; });
   }
 
@@ -1325,11 +1350,11 @@
        resets the context transform, so we restate it here to be safe. */
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    /* Check orientation on mobile */
-    var isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    /* Mobile landscape → HTML overlay is already covering the canvas;
+       just keep the RAF loop alive without drawing anything. */
+    var isMobile = window.matchMedia('(pointer: coarse)').matches ||
+                   /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
     if (isMobile && window.innerWidth > window.innerHeight) {
-      ctx.clearRect(0, 0, lW, lH);
-      renderLandscapeWarning();
       requestAnimationFrame(loop);
       return;
     }
