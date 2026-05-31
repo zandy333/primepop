@@ -607,7 +607,9 @@
 
     do {
       x = margin + Math.random() * (lW - margin * 2);
-      y = lH + r + Math.random() * 40 * scaleY;
+      /* Spread replenishment balls over ~8 ball-diameters of depth so
+         balls that escape in the same frame don't arrive back as a row. */
+      y = lH + r * 1.5 + Math.random() * r * 8;
       attempts++;
     } while (overlaps(x, y, r) && attempts < 40);
 
@@ -634,8 +636,10 @@
     var count  = CONFIG.TARGET_BALL_COUNT;
 
     for (var i = 0; i < count; i++) {
-      /* First ball spawns just below the bottom edge; last ball is ~spread px further down */
-      var baseY = lH + r * 1.5 + (i / Math.max(1, count - 1)) * spread;
+      /* Distribute balls evenly across the spread, plus ±half-slot jitter
+         so no two consecutive balls land at exactly the same depth. */
+      var slotSize = spread / Math.max(1, count - 1);
+      var baseY    = lH + r * 1.5 + i * slotSize + (Math.random() - 0.5) * slotSize * 0.7;
 
       var x, attempts = 0;
       do {
