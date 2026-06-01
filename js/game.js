@@ -49,7 +49,7 @@
   var RATIO_CUM_WEIGHTS = [50, 60, 70, 80, 100];
 
   /* Ball upward speed (px/s) per level at reference height 700px */
-  var LEVEL_SPEEDS = [44, 56, 70, 86, 103, 122, 142, 164, 189, 216];
+  var LEVEL_SPEEDS = [40, 50, 61, 75, 88, 103, 118, 135, 153, 173];
 
   /* How many seconds each level lasts before auto-advancing */
   var LEVEL_DURATION = [32,30,28,26,24,22,20,18,16,14];
